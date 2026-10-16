@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 from MujocoSim import FR3Sim
 from scipy.spatial.transform import Rotation as R
 import time
-
-
 def gaussian_basis_functions(n_basis, T, dt, h=0.5):
     t = np.linspace(0, T, int(T / dt))
     centers = np.linspace(0, T, n_basis)
@@ -12,14 +10,10 @@ def gaussian_basis_functions(n_basis, T, dt, h=0.5):
     phi = np.exp(-0.5 * ((t[:, None] - centers[None, :]) ** 2) / (widths[None, :] ** 2))
     phi /= phi.sum(axis=1, keepdims=True)
     return phi
-
-
 def generate_velocity_profiles(w_x, w_z, phi):
     v_x = phi @ w_x
     v_z = phi @ w_z
     return v_x, v_z
-
-
 def generate_throwing_trajectory(
     x_start, throw_direction, amplitude, duration, n_points
 ):
@@ -27,8 +21,6 @@ def generate_throwing_trajectory(
     trajectory = np.tile(x_start, (n_points, 1))
     trajectory[:, 0] = x_start[0] + amplitude * t  # Linear along X
     return trajectory
-
-
 def rollout(
     robot, trajectory, R_init, v_x, v_z, dt, gravity_force, K, D, post_duration=2.0
 ):
@@ -36,7 +28,12 @@ def rollout(
     velocities = []
     robot.reset(True)
     n_points = len(trajectory)
+    # Define release point: 2 iterations before the end of the trajectory
+    release_step = n_points - 1 
     for t in range(n_points):
+        # 1. Release ball 2 iterations before trajectory ends
+        if t == release_step:
+            robot.set_weld_active("ball_weld", False)
         dx_des = np.zeros(6)
         if t < n_points - 1:
             dx_des[0] = v_x[t]
@@ -59,28 +56,7 @@ def rollout(
         tau = J_spatial.T @ desired_wrench + robot.get_gravity(q)
         robot.send_joint_torque(tau, 10)
         time.sleep(dt)
-    # Stopping before ball release
-    for _ in range(int(0.5 / dt)):
-        q, dq = robot.get_state()
-        T_current = robot.get_pose(q)
-        x_current = T_current[:3, 3]
-        R_ee = T_current[:3, :3]
-        pos_err = trajectory[-1] - x_current
-        R_err = R_init @ R_ee.T
-        rotvec_err = R.from_matrix(R_err).as_rotvec()
-        err = np.concatenate([pos_err, rotvec_err])
-        J = robot.get_jacobian(q)
-        J_spatial = np.vstack([R_ee @ J[3:], R_ee @ J[:3]])
-        dx = J_spatial @ dq
-        vel_error = -dx
-        K_stop = K * 2
-        D_stop = D * 3
-        desired_wrench = K_stop @ err + D_stop @ vel_error - gravity_force
-        tau = J_spatial.T @ desired_wrench + robot.get_gravity(q)
-        robot.send_joint_torque(tau, 10)
-        time.sleep(dt)
-    # Release ball
-    robot.set_weld_active("ball_weld", False)
+    # Post-release simulation: Observe ball flight trajectory
     steps = int(post_duration / dt)
     ball_positions = []
     for _ in range(steps):
@@ -95,16 +71,15 @@ def rollout(
         J = robot.get_jacobian(q)
         J_spatial = np.vstack([R_ee @ J[3:], R_ee @ J[:3]])
         dx = J_spatial @ dq
-        vel_error = -dx
+        vel_error = -dx  # Active damping to bring robot arm to rest post-throw
         desired_wrench = K @ err + D @ vel_error - gravity_force
         tau = J_spatial.T @ desired_wrench + robot.get_gravity(q)
         robot.send_joint_torque(tau, 10)
+        # Track released ball trajectory
         ball_pos = robot.get_body_pose("ball")[1]
         ball_positions.append(ball_pos)
         time.sleep(dt)
     return np.array(actual_trajectory), np.array(ball_positions), np.array(velocities)
-
-
 def compute_cost(ball_trajectory, basket_location, velocities):
     ground_threshold = 0.05
     landing_indices = np.where(ball_trajectory[:, 2] < ground_threshold)[0]
@@ -117,8 +92,6 @@ def compute_cost(ball_trajectory, basket_location, velocities):
     max_velocity = np.max(np.linalg.norm(velocities, axis=1))
     velocity_penalty = 100 if max_velocity < 0.1 else 0
     return distance_cost + velocity_cost + velocity_penalty
-
-
 def pi2_update(w, costs, noise, lambda_=0.1):
     costs = np.array(costs)
     min_cost = np.min(costs)
@@ -131,8 +104,6 @@ def pi2_update(w, costs, noise, lambda_=0.1):
         probs = exp_costs / np.sum(exp_costs)
     delta_w = np.sum(noise * probs[:, None], axis=0)
     return w + delta_w
-
-
 def plot_trajectory(traj, goal=None, title="Trajectory"):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
@@ -145,8 +116,6 @@ def plot_trajectory(traj, goal=None, title="Trajectory"):
     ax.set_title(title)
     ax.legend()
     plt.show()
-
-
 def plot_ball_landing(ball_flight, basket_location):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     ax1.plot(ball_flight[:, 0], ball_flight[:, 2], "b-", label="Ball trajectory")
@@ -179,8 +148,6 @@ def plot_ball_landing(ball_flight, basket_location):
     ax2.legend()
     plt.tight_layout()
     plt.show()
-
-
 if __name__ == "__main__":
     dt = 0.001
     T = 2
