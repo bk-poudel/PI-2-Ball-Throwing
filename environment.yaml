@@ -1,0 +1,20 @@
+name: mujoco_policy_trans
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - matplotlib
+  - scikit-learn
+  - pinocchio
+  - pip
+  - pip:
+      - torch
+      - torchvision
+      - gpytorch
+      - mujoco
+      - gymnasium
+      - open3d
+      - opencv-python
