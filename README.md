@@ -17,18 +17,9 @@ You will need:
 - Common Python packages: numpy and any other dependencies your chosen MuJoCo binding requires.
 Note: MuJoCo requires a license key and correct environment variables / installation. If you don't have MuJoCo installed yet, follow the official instructions at [mujoco.org](https://mujoco.org/) (or the binding's README) and confirm you can run a simple MuJoCo example before continuing.
 ## Quick setup
-1. Create and activate a virtual environment:
+1. Create environment:
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-```
-1. Install your preferred MuJoCo Python bindings and common deps. Example (adjust for your binding):
-```bash
-# example for mujoco-py (if you use it)
-pip install -U numpy mujoco-py
-# or for the newer mujoco Python bindings
-pip install -U numpy mujoco
+conda create env -f environment.yaml
 ```
 1. Ensure MuJoCo assets and license/key are accessible to the binding (set environment variables as required by your binding). For example, some setups require `MUJOCO_PY_MUJOCO_PATH`, `MUJOCO_GL`, or `MUJOCO_KEY_PATH` to be set.
 ## Running the simulation
